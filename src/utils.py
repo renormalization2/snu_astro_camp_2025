@@ -31,7 +31,7 @@ def ra_dec_to_l_b(ra: str | float, dec: float, time: str = None):
     coord_icrs = SkyCoord(ra=angle_ra, dec=angle_dec, frame="icrs", obstime=time, location=observatory)
     coord_gal = coord_icrs.galactic
 
-    return coord_gal.l, coord_gal.b
+    return coord_gal.l.value, coord_gal.b.value
 
 
 def alt_az_to_l_b(alt, az, time: str = None):
@@ -39,7 +39,7 @@ def alt_az_to_l_b(alt, az, time: str = None):
 
     coord_aa = SkyCoord(alt=alt * u.deg, az=az * u.deg, frame="altaz", obstime=time, location=observatory)
     coord_gal = coord_aa.galactic  # transform to Galactic
-    return coord_gal.l, coord_gal.b
+    return coord_gal.l.value, coord_gal.b.value
 
 
 def l_b_to_alt_az(l, b, time: str = None):
@@ -47,14 +47,14 @@ def l_b_to_alt_az(l, b, time: str = None):
 
     coord_gal = SkyCoord(l=l * u.deg, b=b * u.deg, frame="galactic", obstime=time, location=observatory)
     coord_aa = coord_gal.transform_to("altaz")
-    return coord_aa.alt, coord_aa.az
+    return coord_aa.alt.value, coord_aa.az.value
 
 
 def unique_filename(filepath: str, always_add_counter: bool = False) -> str:
     """
     Given a desired filepath (can include directory and extension),
     returns a variant that does not collide with an existing file.
-    If 'foo.txt' exists, will try 'foo_1.txt', 'foo_2.txt', etc.
+    If 'foo.txt' exists, will try 'foo_001.txt', 'foo_002.txt', etc.
     """
     directory, filename = os.path.split(filepath)
     stem, ext = os.path.splitext(filename)
@@ -65,18 +65,19 @@ def unique_filename(filepath: str, always_add_counter: bool = False) -> str:
     # if counter exists
     if match:
         counter = int(match.group(2))
-        stem = match.group(1)  # make stem counter-less
+        counterless_stem = match.group(1)  # make stem counter-less
         candidate = f"{stem}_{counter:03d}{ext}"
 
     # if counter doesn't exist
     else:
         counter = 0 if always_add_counter else 1
-        stem = f"{stem}_{counter:03d}" if always_add_counter else stem
-        candidate = "".join([stem, ext])  # redefine filename with counter-added stem
+        counterless_stem = stem
+        # redefine filename with counter-added stem
+        candidate = "".join([f"{counterless_stem}_{counter:03d}" if always_add_counter else stem, ext])
 
     # Loop until we find a non-existing filename
     while os.path.exists(os.path.join(directory, candidate)):
-        candidate = f"{stem}_{counter:03d}{ext}"
+        candidate = f"{counterless_stem}_{counter:03d}{ext}"
         counter += 1
 
     return os.path.join(directory, candidate)
