@@ -34,7 +34,7 @@ def save_spectrum(freq, power, time=None, x=None, y=None, suffix=None, demo=Fals
     else:
         filename = f"{time}_{x:.0f}_{y:.0f}_{suffix}.csv" if suffix else f"{time}_{x:.0f}_{y:.0f}.csv"
 
-    filename.replace(":", "-")
+    filename = filename.replace(":", "-")
 
     save_dir = DATA_DIR if not demo else DEMO_DATA_DIR
     tbl = Table()
