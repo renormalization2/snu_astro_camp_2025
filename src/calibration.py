@@ -1,11 +1,17 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.optimize import curve_fit
+from astropy.coordinates import SkyCoord
+import astropy.units as u
 
-from src.constants import DATA_DIR
+from src.constants import DATA_DIR, DEMO_DATA_DIR, observatory
+from src.observation import Exposure
 
 
-def calibrate(sky, ground, plot=True):
+def calibrate():
+    pass
+
+
+def power_to_TA(sky, ground, plot=True):
     # T_sky = 20  # Kelvin
     T_amb = 300  # 273.15 K + 30 K
 
@@ -36,10 +42,44 @@ def calibrate(sky, ground, plot=True):
         plt.legend()
         plt.show()
 
+    np.save(DATA_DIR / "freq.npy", freq)
     np.save(DATA_DIR / f"TA_{sky.l}_{sky.b}.npy", T_src)
 
     return freq, T_src
 
 
-def gaussian_fit(freq, T_src, plot=True):
-    pass
+def freq_to_velocity(freq):
+    f0 = 1420.40575  # rest frame frequency of H1
+    c = 2.9979e5  # lightspeed in [km/s]
+    return -c * (freq - f0) / freq
+
+
+def get_v_corr(sky):
+    obstime = sky.time
+    l = sky.l
+    b = sky.b
+
+    obj = SkyCoord(l=l * u.deg, b=b * u.deg, frame="galactic", obstime=obstime, location=observatory)
+
+    # kinematic LSR correction (astropy version dependent)
+    # vcorr_lsr = obj.radial_velocity_correction(kind="lsrk").to(u.km / u.s).value
+    helio_corr = obj.radial_velocity_correction("heliocentric").to(u.km / u.second).value
+
+    # Peculiar velocity of sun
+    # v_sun = [10, 5, 7] * u.km / u.s
+    U, V, W = 10, 5, 7
+    peculiar_corr = U * np.sin(l) + V * np.cos(l)
+    v_corr = helio_corr + peculiar_corr
+    return v_corr
+
+
+def load_TA(l, b, type="sky", demo=False, velocity=False):
+    # freq = Exposure.from_file(l=l, b=b, type=type, demo=demo).freq
+    data_dir = DATA_DIR  # if not demo else DEMO_DATA_DIR   # always datadir for .npy
+    TA = np.load(data_dir / f"TA_{l}_{b}.npy")
+    if not velocity:
+        freq = np.load(data_dir / "freq.npy")
+        return freq, TA
+    else:
+        velocity = np.load(data_dir / f"Vr_{l}_{b}.npy")
+        return velocity, TA
