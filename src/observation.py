@@ -111,8 +111,8 @@ class Exposure:
                     save_raw=False,
                 )
                 freq, power = self._get_spectrum(i, samples)
+                save_spectrum(freq, power, time=self.time, x=self.l, y=self.b, suffix=self.exposure_type)
             # plt.ioff()
-        save_spectrum(freq, power, time=self.time, x=self.l, y=self.b, suffix=self.exposure_type)
 
         # for power in self.powers:
         #     self.ax.plot(freq, power, c=f"C{i}", alpha=0.5)
