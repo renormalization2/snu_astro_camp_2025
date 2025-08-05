@@ -68,39 +68,49 @@ class Exposure:
         self.az = az
         self.ra = ra
         self.dec = dec
-        self.l = l
-        self.b = b
         if self.alt and self.az:
             self.l, self.b = alt_az_to_l_b(self.alt, self.az, self.time)
         elif self.ra and self.dec:
             self.l, self.b = ra_dec_to_l_b(self.ra, self.dec, self.time)
         else:
             print("[Warning] No RA/Dec or Alt/Az pair provided")
-            self.l = "unknown"
-            self.b = "coordinates"
+            self.l = l
+            self.b = b
 
-        print(f"Data will be saved at [{self.time}] with l={self.l:.0f}, b={self.b:.0f}")
+        if self.l and self.b:
+            print(f"Data will be saved at [{self.time}] with l={self.l:.0f}, b={self.b:.0f}")
+        else:
+            print(f"Data will be saved at [{self.time}] with unknown coordinates")
+
         self.freq = None
         self.powers = np.empty((self.n_obs, self.n_fft))
 
     def __repr__(self):
         return f"Exposure object with n_obs={self.n_obs}, l={self.l}, b={self.b}, time={self.time}"
 
-    def run(self):
+    def run(self, demo=False):
         # canvas for spectrum plot
-        self.fig, self.ax = plt.subplots(figsize=(8, 6))
-        # plt.ion()  # plt interactive mode on
-        for i in range(self.n_obs):
-            samples = self._expose(
-                sample_rate=3e6,
-                center_freq=1.4204e9,
-                gain=50,
-                n_samples=256 * self.n_fft,
-                save_raw=False,
-            )
-            power, freq = self._get_spectrum(i, samples)
-            save_spectrum(freq, power, time=self.time, x=self.l, y=self.b, suffix=self.exposure_type)
-        # plt.ioff()
+        if demo:
+            flist = glob(str(DEMO_DATA_DIR / "2025-08-04" / "*_31_11_sky_???.csv"))[:10]
+            for i, f in enumerate(flist):
+                data = load_data(f)
+                power, freq = np.array(data["power"]), np.array(data["frequency"])
+                self.powers[i] = power
+            self.freq = freq
+        else:
+            self.fig, self.ax = plt.subplots(figsize=(8, 6))
+            # plt.ion()  # plt interactive mode on
+            for i in range(self.n_obs):
+                samples = self._expose(
+                    sample_rate=3e6,
+                    center_freq=1.4204e9,
+                    gain=50,
+                    n_samples=256 * self.n_fft,
+                    save_raw=False,
+                )
+                freq, power = self._get_spectrum(i, samples)
+            # plt.ioff()
+        save_spectrum(freq, power, time=self.time, x=self.l, y=self.b, suffix=self.exposure_type)
 
         # for power in self.powers:
         #     self.ax.plot(freq, power, c=f"C{i}", alpha=0.5)
@@ -165,7 +175,7 @@ class Exposure:
             self.freq = freq
         assert np.array_equal(self.freq, freq)  # ensure the same frequency grid is used for all exposures
         self.powers[i] = power
-        return power, freq
+        return freq, power
 
     @property
     def power(self):
@@ -181,8 +191,8 @@ class Exposure:
         b = b or self.b
         exposure_type = type or self.exposure_type
 
-        template = f"{time or "*"}_{l:.0f}_{b:.0f}_{exposure_type or "*"}*.csv"
-        template = str(DEMO_DATA_DIR if demo else DATA_DIR / template)
+        template = f"{time or '*'}_{l:.0f}_{b:.0f}_{exposure_type or '*'}*.csv"
+        template = str((DEMO_DATA_DIR / "2025-08-04" if demo else DATA_DIR) / template)
         flist = glob(template)
         print(f"loading {len(flist)} files")
 
