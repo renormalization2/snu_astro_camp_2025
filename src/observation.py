@@ -195,8 +195,12 @@ class Exposure:
         b = b or self.b
         exposure_type = type or self.exposure_type
 
-        template = f"{time or '*'}_{l:.0f}_{b:.0f}_{exposure_type or '*'}*.csv"
-        template = str((DEMO_DATA_DIR / "2025-08-04" if demo else DATA_DIR) / template)
+        time_str = time if time is not None else "*"
+        l_str = f"{l:.0f}" if l is not None else "*"
+        b_str = f"{b:.0f}" if b is not None else "*"
+        exp_str = exposure_type if exposure_type is not None else "*"
+        template = f"{time_str}_{l_str}_{b_str}_{exp_str}*.csv"
+        template = str((DEMO_DATA_DIR if demo else DATA_DIR) / template)
         flist = glob(template)
         print(f"loading {len(flist)} files")
 
@@ -224,7 +228,7 @@ class Exposure:
         self.b = b
         self.n_fft = n_fft
         self.exposure_type = type
-        self.load(l=l, b=b, demo=demo)
+        self.load(l=l, b=b, type=self.exposure_type, demo=demo)
         return self
 
     def plot_spectrum(self):
@@ -254,8 +258,11 @@ class Exposure:
         ax.set_xlim(np.min(self.freq), np.max(self.freq))
         ax.set_xlabel("Frequency (MHz)")
         ax.set_ylabel("Power (dB/MHz)")
+        if self.exposure_type:
+            ax.set_title(f"{self.exposure_type.title()}")
         ax.minorticks_on()
         ax.grid(which="both")
+        plt.show()
         return fig, ax
 
 
