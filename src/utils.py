@@ -1,11 +1,12 @@
 import os
 import re
-import glob
 
+import numpy as np
 from astropy.coordinates import SkyCoord, Angle
-from src.constants import observatory
 from astropy.time import Time
 import astropy.units as u
+
+from src.constants import observatory
 
 
 def isotime(time: str = None) -> str:
@@ -81,3 +82,29 @@ def unique_filename(filepath: str, always_add_counter: bool = False) -> str:
         counter += 1
 
     return os.path.join(directory, candidate)
+
+
+def calc_psd(sample, fs, fc=0, N_fft=1024, overlap=0, window_func=np.hamming):
+
+    # Welch method - PSD averaging
+    # overlap: between windows fraction
+    # N_fft: length of each segments (higher value leads higher spectral resolution)
+
+    win = window_func(N_fft)  # window function
+    U = np.mean(win**2)  # power of window function
+
+    step = int(N_fft * (1 - overlap))  # window step
+    freq = np.fft.fftshift(np.fft.fftfreq(N_fft, d=1 / (fs / 1e6))) + fc / 1e6  # frequency grid
+
+    segments = []
+    for i in range(0, len(sample) - N_fft + 1, step):
+        seg = sample[i : i + N_fft]
+        segments.append(seg * win)  # convolution in time domain
+    segments = np.array(segments)
+
+    # FFT for each segments
+    F_seg = np.fft.fftshift(np.fft.fft(segments, axis=1), axes=1) / N_fft
+    psd_seg = np.abs(F_seg) ** 2 / U
+    psd = np.mean(psd_seg, axis=0)
+
+    return freq, psd

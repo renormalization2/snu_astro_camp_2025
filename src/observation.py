@@ -1,7 +1,9 @@
+from fileinput import filename
 import os
 from glob import glob
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.mlab import psd
 import astropy.units as u
 from astropy.coordinates import SkyCoord
 from astropy.table import Table
@@ -30,33 +32,37 @@ def save_spectrum(freq, power, time=None, x=None, y=None, suffix=None, demo=Fals
     if x is None and y is None:
         filename = f"{time}_{suffix}.csv" if suffix else f"{time}.csv"
     else:
-        filename = f"{time}_{x}_{y}_{suffix}.csv" if suffix else f"{time}_{x}_{y}.csv"
+        filename = f"{time}_{x:.0f}_{y:.0f}_{suffix}.csv" if suffix else f"{time}_{x:.0f}_{y:.0f}.csv"
 
     save_dir = DATA_DIR if not demo else DEMO_DATA_DIR
     tbl = Table()
     tbl["frequency"] = freq
     tbl["power"] = power
-    tbl.write(unique_filename(save_dir / filename), format="csv", delimiter="\t")
+    tbl.write(unique_filename(save_dir / filename, always_add_counter=True), format="csv", delimiter="\t")
     # np.savetxt(unique_filename(save_dir / filename), np.stack([freq, power]), delimiter=",")
 
 
-def load_data(filename=None, time=None, x=None, y=None, demo=False):
-    filename = filename or f"{time}_{x}_{y}.csv"
+def load_data(filename=None, time=None, l=None, b=None, demo=False):
+    filename = filename or f"{time}_{l:.0f}_{b:.0f}.csv"
     if os.path.dirname(filename) == "":
         filename = DATA_DIR / filename if not demo else DEMO_DATA_DIR / filename
 
     if os.path.splitext(filename)[1] == ".npy":
         return np.load(filename)
-    return np.loadtxt(filename, delimiter=",")
+    # return np.loadtxt(filename, delimiter=",")
+    return Table.read(filename, format="csv", delimiter="\t")
 
 
 class Exposure:
     """Exposures whose pointing and obstime can be considered the same"""
 
-    def __init__(self, n_obs=10, alt=None, az=None, ra=None, dec=None, l=None, b=None, time=None, type=None):
+    def __init__(
+        self, n_obs=10, alt=None, az=None, ra=None, dec=None, l=None, b=None, time=None, type=None, n_fft=NFFT
+    ):
         self.n_obs = n_obs
         self.time = time or isotime()
         self.exposure_type = type  # e.g., sky, ground
+        self.n_fft = n_fft
 
         self.alt = alt
         self.az = az
@@ -65,24 +71,47 @@ class Exposure:
         self.l = l
         self.b = b
         if self.alt and self.az:
-            self.l, self.b = alt_az_to_l_b(self.alt, self.az, time)
+            self.l, self.b = alt_az_to_l_b(self.alt, self.az, self.time)
         elif self.ra and self.dec:
-            self.l, self.b = ra_dec_to_l_b(self.ra, self.dec, time)
+            self.l, self.b = ra_dec_to_l_b(self.ra, self.dec, self.time)
         else:
             print("[Warning] No RA/Dec or Alt/Az pair provided")
             self.l = "unknown"
             self.b = "coordinates"
 
-        # canvas for spectrum plot
-        self.fig, self.ax = plt.subplots(figsize=(8, 6))
+        print(f"Data will be saved at [{self.time}] with l={self.l:.0f}, b={self.b:.0f}")
+        self.freq = None
+        self.powers = np.empty((self.n_obs, self.n_fft))
+
+    def __repr__(self):
+        return f"Exposure object with n_obs={self.n_obs}, l={self.l}, b={self.b}, time={self.time}"
 
     def run(self):
-        plt.ion()  # plt interactive mode on
+        # canvas for spectrum plot
+        self.fig, self.ax = plt.subplots(figsize=(8, 6))
+        # plt.ion()  # plt interactive mode on
         for i in range(self.n_obs):
-            samples = self._expose()
-            power, freq = self._get_spectrum(samples)
+            samples = self._expose(
+                sample_rate=3e6,
+                center_freq=1.4204e9,
+                gain=50,
+                n_samples=256 * self.n_fft,
+                save_raw=False,
+            )
+            power, freq = self._get_spectrum(i, samples)
             save_spectrum(freq, power, time=self.time, x=self.l, y=self.b, suffix=self.exposure_type)
-        plt.ioff()
+        # plt.ioff()
+
+        # for power in self.powers:
+        #     self.ax.plot(freq, power, c=f"C{i}", alpha=0.5)
+        # self.ax.set_xlim(np.min(freq), np.max(freq))
+        # self.ax.set_xlabel("Frequency (MHz)")
+        # self.ax.set_ylabel("Power (dB/MHz)")
+        # self.ax.minorticks_on()
+        # print(np.min(self.freq))
+        # self.ax.plot(self.freq, self.power, c="k", label="Mean Spectrum")  # MHz
+        # self.ax.legend()
+        print("Exposure finished")
 
     def _expose(self, sample_rate=3e6, center_freq=1.4204e9, gain=50, n_samples=256 * NFFT, save_raw=False):
         """unload raw time-series data from memory immediately, and only keep the power spectrum"""
@@ -90,9 +119,7 @@ class Exposure:
         self.center_freq = center_freq
         self.gain = gain
         self.n_samples = n_samples
-        self.n_fft = NFFT
-        self.freq = None
-        self.powers = np.empty((self.n_obs, self.n_fft))
+        # self.powers = np.empty((self.n_obs, self.n_fft))  # redefine with new n_fft
 
         samples = expose_sdr(
             sample_rate=self.sample_rate,
@@ -106,15 +133,25 @@ class Exposure:
 
         return samples
 
-    def _get_spectrum(self, samples):
-        fig, ax = plt.subplots(figsize=(8, 6))
+    def _get_spectrum(self, i, samples):
+        # self.ax.cla()  # clear previous axis
+        fig, ax = self.fig, self.ax
         # ax.psd includes Hann windowing and gives a less noisy spectrum than np.fft
+        # _fig, _ax = plt.subplots()
+        # power, freq = _ax.psd(
         power, freq = ax.psd(
+            # power, freq = psd(
             samples,
             NFFT=self.n_fft,
             Fs=self.sample_rate / 1e6,
             Fc=self.center_freq / 1e6,
+            # noverlap=0,
+            # scale_by_freq=False,
         )  # 1e6 for MHz
+        # ax.plot(freq, power, c=f"C{i}", alpha=0.5)
+        # plt.close(_fig)  # kill the figure before showing
+        # ax.plot(freq, power, c=f"C{i}", alpha=0.5)
+
         ax.set_xlim(np.min(freq), np.max(freq))
         ax.set_xlabel("Frequency (MHz)")
         ax.set_ylabel("Power (dB/MHz)")
@@ -124,10 +161,10 @@ class Exposure:
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
 
-        if not self.freq:
+        if self.freq is None:
             self.freq = freq
-        assert self.freq == freq  # ensure the same frequency grid is used for all exposures
-        self.powers.append(power)
+        assert np.array_equal(self.freq, freq)  # ensure the same frequency grid is used for all exposures
+        self.powers[i] = power
         return power, freq
 
     @property
@@ -136,17 +173,122 @@ class Exposure:
             raise ValueError("No power spectrum data available")
         return np.mean(self.powers, axis=0)
 
-    def load(self, filenames: list = None, time=None, x=None, y=None, demo=False):
+    def load(self, filenames: list = None, time=None, l=None, b=None, type=None, demo=False):
         if filenames and isinstance(filenames, str):
             filenames = [filenames]
 
-        if os.path.dirname(filename) == "":
-            filename = DATA_DIR / filename if not demo else DEMO_DATA_DIR / filename
+        l = l or self.l
+        b = b or self.b
+        exposure_type = type or self.exposure_type
 
-        template = f"*_{self.l}_{self.b}_{self.exposure_type}*.csv"
+        template = f"{time or "*"}_{l:.0f}_{b:.0f}_{exposure_type or "*"}*.csv"
+        template = str(DEMO_DATA_DIR if demo else DATA_DIR / template)
         flist = glob(template)
-        for f in flist:
-            data = load_data(f)
-            self.powers.append(data["power"])
+        print(f"loading {len(flist)} files")
 
-        return data["frequency"], self.powers
+        self.n_obs = len(flist)
+        self.powers = np.empty((self.n_obs, self.n_fft))
+
+        for i, f in enumerate(flist):
+            data = load_data(f)
+            self.powers[i] = np.array(data["power"])
+
+        self.freq = np.array(data["frequency"])
+
+        if not hasattr(self, "time") or (hasattr(self, "time") and self.time is None):
+            from pathlib import Path
+
+            time_str = Path(f).stem.split("_")[0]
+            self.time = isotime(time_str)
+
+        return self.freq, self.powers
+
+    @classmethod
+    def from_file(cls, time=None, l=None, b=None, type=None, n_fft=NFFT, demo=False):
+        self = cls.__new__(cls)  # (l=l, b=b, time=time, type=type, demo=demo)
+        self.l = l
+        self.b = b
+        self.n_fft = n_fft
+        self.exposure_type = type
+        self.load(l=l, b=b, demo=demo)
+        return self
+
+    def plot_spectrum(self):
+        from matplotlib.collections import LineCollection
+        from matplotlib.legend_handler import HandlerLineCollection
+
+        # color palette
+        cmap = plt.cm.viridis
+        colors = cmap(np.linspace(0, 1, len(self.powers)))
+
+        fig, ax = plt.subplots(figsize=(8, 6))
+        for power, col in zip(self.powers, colors):
+            ax.plot(self.freq, 10 * np.log10(power), alpha=0.5, color=col)
+        segs = [([[0, 0], [1, 0]]) for _ in colors]  # one horizontal segment per color
+        indiv_spec_label_proxy = LineCollection(segs, colors=colors, linewidths=7)
+        indiv_spec_label_proxy.set_label("Individual Spectra")
+
+        (mean_spec_label,) = ax.plot(self.freq, 10 * np.log10(self.power), c="k", label="Mean Spectrum")
+
+        # multi-color legend
+        ax.legend(
+            handles=[indiv_spec_label_proxy, mean_spec_label],
+            handler_map={LineCollection: HandlerLineCollection(numpoints=len(colors))},
+            loc="best",
+            frameon=False,
+        )
+        ax.set_xlim(np.min(self.freq), np.max(self.freq))
+        ax.set_xlabel("Frequency (MHz)")
+        ax.set_ylabel("Power (dB/MHz)")
+        ax.minorticks_on()
+        ax.grid(which="both")
+        return fig, ax
+
+
+#     def plot_spectrum(self):
+#         cmap = plt.cm.viridis
+#         colors = cmap(np.linspace(0, 1, len(self.powers)))
+
+#         fig, ax = plt.subplots(figsize=(8, 6))
+#         for power, col in zip(self.powers, colors):
+#             ax.plot(self.freq, 10 * np.log10(power), color=col, alpha=0.5)
+
+#         ax.plot(self.freq, 10 * np.log10(self.power), "k", lw=2, label="Mean Spectrum")
+
+#         # add dummy Rectangle that carries the colormap
+#         grad_handle = Rectangle((0, 0), 1, 1, facecolor="none")
+#         grad_handle.cmap = cmap
+#         ax.legend(
+#             [
+#                 grad_handle,
+#             ],
+#             ["Individual Spectra"],
+#             handler_map={Rectangle: HandlerGradient()},
+#             frameon=False,
+#         )
+
+#         ax.set_xlim(self.freq.min(), self.freq.max())
+#         ax.set_xlabel("Frequency (MHz)")
+#         ax.set_ylabel("Power (dB/MHz)")
+#         ax.minorticks_on()
+#         ax.grid(which="both", alpha=0.3)
+#         return fig, ax
+
+
+# from matplotlib.patches import Rectangle
+# from matplotlib.legend_handler import HandlerPatch
+
+
+# class HandlerGradient(HandlerPatch):
+#     def create_artists(self, legend, orig_handle, xdescent, ydescent, width, height, fontsize, trans):
+#         # orig_handle is a dummy Rectangle
+#         grad = np.linspace(0, 1, 256).reshape(1, -1)
+#         ax = legend.axes
+#         im = ax.imshow(
+#             grad,
+#             cmap=orig_handle.cmap,
+#             extent=(xdescent, xdescent + width, ydescent, ydescent + height),
+#             transform=trans,
+#             aspect="auto",
+#         )
+#         return [im]

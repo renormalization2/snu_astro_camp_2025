@@ -1,3 +1,6 @@
 **/__pycache__/
 demo_data/2024
 demo_data/2025*
+demo_data/*.zip
+data/*.zip
+data/*.csv
