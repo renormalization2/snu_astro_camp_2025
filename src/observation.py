@@ -34,6 +34,8 @@ def save_spectrum(freq, power, time=None, x=None, y=None, suffix=None, demo=Fals
     else:
         filename = f"{time}_{x:.0f}_{y:.0f}_{suffix}.csv" if suffix else f"{time}_{x:.0f}_{y:.0f}.csv"
 
+    filename.replace(":", "-")
+
     save_dir = DATA_DIR if not demo else DEMO_DATA_DIR
     tbl = Table()
     tbl["frequency"] = freq
@@ -138,7 +140,9 @@ class Exposure:
             n_samples=self.n_samples,
         )
         if save_raw:
-            fname = unique_filename(DATA_DIR / f"{self.time}_{self.l}_{self.b}_raw.npy", always_add_counter=True)
+            # fname = unique_filename(DATA_DIR / f"{self.time}_{self.l}_{self.b}_raw.npy", always_add_counter=True)
+            time = self.time.replace(":", "-")
+            fname = unique_filename(DATA_DIR / f"{time}_{self.l}_{self.b}_raw.npy", always_add_counter=True)
             np.save(fname, samples)
 
         return samples
