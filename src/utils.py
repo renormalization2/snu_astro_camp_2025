@@ -19,6 +19,7 @@ def isotime(time: str = None) -> str:
 
 
 def clean_isot(time: str) -> str:
+    """for windows"""
     return time.replace(":", "-")
 
 
