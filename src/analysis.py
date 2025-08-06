@@ -25,7 +25,7 @@ def triple_gauss(x, mu1, sigma1, A1, mu2, sigma2, A2, mu3, sigma3, A3):
     return g1 + g2 + g3
 
 
-def gaussian_fit(V_r, T_src, p0, plot=True):
+def gaussian_fit(V_r, T_src, p0, obj=None, plot=True, return_plot=True):
     if len(p0) == 1:
         func = single_gauss
     elif len(p0) == 2:
@@ -58,21 +58,27 @@ def gaussian_fit(V_r, T_src, p0, plot=True):
         )
 
     if plot:
-        plt.figure(figsize=(10, 4))
-        plt.plot(V_r, T_src, label="Data", lw=1)
-        plt.plot(x_fit, y_tot, "r--", label="Total fit", lw=2)
+        fig, ax = plt.subplots(figsize=(10, 4))
+        # label = rf"$T_{{src}}$ ($\ell = {obj.l}^\circ$, $b = {obj.b}^\circ$)" if obj else rf"$T_{{src}}$"
+        label = rf"$T_{{src}}$"
+        ax.plot(V_r, T_src, lw=1, label=label)
+        ax.plot(x_fit, y_tot, "r--", label="Total fit", lw=2)
 
         # Components
         for i in range(len(popt) // 3):
             mu, sigma, A = popt[i * 3], popt[i * 3 + 1], popt[i * 3 + 2]
             y = A * np.exp(-0.5 * ((x_fit - mu) / sigma) ** 2)
-            plt.plot(x_fit, y, label=f"Component {i+1}")
+            ax.plot(x_fit, y, label=f"Component {i+1}")
 
-        plt.axvline(0, color="k", ls=":", label="v=0 km/s")
-        plt.xlabel("$V_r$ [km s$^{-1}$]")
-        plt.ylabel("Power [dB/Hz]")
-        plt.legend(loc="upper right")
+        ax.axvline(0, color="k", ls=":", label="v=0 km/s")
+        if obj:
+            ax.set_title(rf"$\ell = {obj.l}^\circ$, $b = {obj.b}^\circ$")
+        ax.set_xlabel("$V_r$ [km s$^{-1}$]")
+        ax.set_ylabel(r"$T_A$ (K)")
+        ax.legend(loc="upper right", fontsize=10)
         plt.tight_layout()
-        plt.show()
+
+        if return_plot:
+            return fig, ax
 
     return popt, perr
