@@ -73,7 +73,7 @@ def gaussian_fit(V_r, T_src, p0, obj=None, plot=True, return_plot=True):
         ax.axvline(0, color="k", ls=":", label="v=0 km/s")
         if obj:
             ax.set_title(rf"$\ell = {obj.l}^\circ$, $b = {obj.b}^\circ$")
-        ax.set_xlabel("$V_r$ [km s$^{-1}$]")
+        ax.set_xlabel(r"$\rm V_r\ [km\ s^{-1}]$")
         ax.set_ylabel(r"$T_A$ (K)")
         ax.legend(loc="upper right", fontsize=10)
         plt.tight_layout()
@@ -82,3 +82,39 @@ def gaussian_fit(V_r, T_src, p0, obj=None, plot=True, return_plot=True):
             return fig, ax
 
     return popt, perr
+
+
+from astropy.table import Table
+from src.constants import DEMO_DATA_DIR
+
+tbl = Table.read(DEMO_DATA_DIR / "rotation_curve.csv")
+
+
+def plot_archive_rotation_curve():
+    from scipy.interpolate import CubicSpline
+
+    plt.errorbar(
+        tbl["r"],
+        tbl["V"],
+        yerr=tbl["dV"],
+        color="k",
+        label="Bhattacharjee et al.(2014)",
+        ls="None",
+        capsize=3,
+        marker="o",
+        ms=3,
+        lw=0.5,
+    )
+
+    func = CubicSpline(tbl["r"], tbl["V"], bc_type="natural")
+    r0 = 8.5
+    rs = np.arange(0, 15, 0.1)
+    plt.plot(rs, func(rs), alpha=0.5)  # , label="spline curve")
+
+    plt.axvline(r0, color="k", ls="dotted", label="Solar Position")
+    plt.minorticks_on()
+    plt.ylabel(r"Rotation Velocty $V_{LSR}(r)\;[\rm kms^{-1}]$")
+    plt.xlabel(r"Radius $r\;[\rm kpc]$")
+    plt.xlim(-0.5, 15)
+    plt.ylim(0, 300)
+    plt.legend(loc="lower right")
