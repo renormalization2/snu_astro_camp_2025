@@ -18,6 +18,17 @@ def isotime(time: str = None) -> str:
     return time.isot.split(".")[0]  # trim milliseconds
 
 
+def clean_isot(time: str) -> str:
+    return time.replace(":", "-")
+
+
+def restore_isot(s: str) -> str:
+    date, time = s.split("T")
+    time = time.replace("-", ":")
+    t = f"{date}T{time}"
+    return t
+
+
 def ra_dec_to_l_b(ra: str | float, dec: float, time: str = None):
     """
     ra: str (hms) or float (deg)

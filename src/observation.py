@@ -10,7 +10,7 @@ from astropy.table import Table
 from rtlsdr import RtlSdr
 
 from src.constants import NFFT, DATA_DIR, DEMO_DATA_DIR
-from src.utils import unique_filename, alt_az_to_l_b, ra_dec_to_l_b, isotime
+from src.utils import unique_filename, alt_az_to_l_b, ra_dec_to_l_b, isotime, clean_isot, restore_isot
 
 # [Warm Up] this builds the transform graph and prevent overhead in the subsequent code
 _ = SkyCoord(l=0 * u.deg, b=0 * u.deg, frame="galactic").icrs
@@ -34,7 +34,7 @@ def save_spectrum(freq, power, time=None, x=None, y=None, suffix=None, demo=Fals
     else:
         filename = f"{time}_{x:.0f}_{y:.0f}_{suffix}.csv" if suffix else f"{time}_{x:.0f}_{y:.0f}.csv"
 
-    filename = filename.replace(":", "-")
+    filename = clean_isot(filename)
 
     save_dir = DATA_DIR if not demo else DEMO_DATA_DIR
     tbl = Table()
@@ -141,7 +141,7 @@ class Exposure:
         )
         if save_raw:
             # fname = unique_filename(DATA_DIR / f"{self.time}_{self.l}_{self.b}_raw.npy", always_add_counter=True)
-            time = self.time.replace(":", "-")
+            time = clean_isot(self.time)
             fname = unique_filename(DATA_DIR / f"{time}_{self.l}_{self.b}_raw.npy", always_add_counter=True)
             np.save(fname, samples)
 
@@ -195,7 +195,7 @@ class Exposure:
         b = b or self.b
         exposure_type = type or self.exposure_type
 
-        time_str = time if time is not None else "*"
+        time_str = clean_isot(time) if time is not None else "*"
         l_str = f"{l:.0f}" if l is not None else "*"
         b_str = f"{b:.0f}" if b is not None else "*"
         exp_str = exposure_type if exposure_type is not None else "*"
@@ -216,7 +216,7 @@ class Exposure:
         if not hasattr(self, "time") or (hasattr(self, "time") and self.time is None):
             from pathlib import Path
 
-            time_str = Path(f).stem.split("_")[0]
+            time_str = restore_isot(Path(f).stem.split("_")[0])
             self.time = isotime(time_str)
 
         return self.freq, self.powers

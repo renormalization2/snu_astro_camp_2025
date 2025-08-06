@@ -17,11 +17,11 @@ def load_calibrated(l: int, b: int, demo=False):
 def calibrate(l: int, b: int, plot=True, intermediate_plot=False, demo=False):
     sky = Exposure.from_file(l=l, b=b, type="sky", demo=demo)
     ground = Exposure.from_file(type="ground", demo=demo)
-    if plot:
+    if plot and intermediate_plot:
         fig, ax = sky.plot_spectrum()
         fig, ax = ground.plot_spectrum()
 
-    freq, T_src = power_to_TA(sky, ground, plot=intermediate_plot and plot)
+    freq, T_src = power_to_TA(sky, ground, plot=(intermediate_plot and plot))
 
     V_r = freq_to_velocity(freq)
     v_corr = get_v_corr(sky)
