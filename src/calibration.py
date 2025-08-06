@@ -7,14 +7,21 @@ from src.constants import DATA_DIR, DEMO_DATA_DIR, observatory
 from src.observation import Exposure
 
 
-def calibrate(l: int, b: int, plot=True, demo=False):
+def load_calibrated(l: int, b: int, demo=False):
+    data_dir = DATA_DIR if not demo else DEMO_DATA_DIR
+    V_r = np.load(data_dir / f"Vr_{l}_{b}.npy")
+    T_src = np.load(data_dir / f"TA_{l}_{b}.npy")
+    return V_r, T_src
+
+
+def calibrate(l: int, b: int, plot=True, intermediate_plot=False, demo=False):
     sky = Exposure.from_file(l=l, b=b, type="sky", demo=demo)
     ground = Exposure.from_file(type="ground", demo=demo)
     if plot:
         fig, ax = sky.plot_spectrum()
         fig, ax = ground.plot_spectrum()
 
-    freq, T_src = power_to_TA(sky, ground, plot=plot)
+    freq, T_src = power_to_TA(sky, ground, plot=intermediate_plot and plot)
 
     V_r = freq_to_velocity(freq)
     v_corr = get_v_corr(sky)
@@ -23,14 +30,17 @@ def calibrate(l: int, b: int, plot=True, demo=False):
     # save Vr
     np.save(DATA_DIR / f"Vr_{l}_{b}.npy", V_r)
 
-    plt.figure(figsize=(15, 5))
-    plt.plot(V_r, T_src, color="C0")
-    plt.axvline(0, ls="dashed", color="gray")
-    plt.xlim(np.min(V_r), np.max(V_r))
-    plt.xlabel(r"$\rm V_r\ [km\ s^{-1}]$")
-    plt.ylabel(r"$T_A$ (K)")
-    plt.minorticks_on()
-    plt.show()
+    if plot:
+        plt.figure(figsize=(15, 5))
+        plt.plot(V_r, T_src, color="C0")
+        plt.axvline(0, ls="dashed", color="gray")
+        plt.xlim(np.min(V_r), np.max(V_r))
+        plt.xlabel(r"$\rm V_r\ [km\ s^{-1}]$")
+        plt.ylabel(r"$T_A$ (K)")
+        plt.minorticks_on()
+        plt.show()
+
+    return V_r, T_src
 
 
 def power_to_TA(sky, ground, plot=True):
