@@ -5,3 +5,4 @@ demo_data/*.zip
 data/*.zip
 data/*.csv
 data/*.npy
+data/trash/*
