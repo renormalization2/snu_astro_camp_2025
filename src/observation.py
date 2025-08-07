@@ -232,7 +232,7 @@ class Exposure:
         self.load(l=l, b=b, type=self.exposure_type, demo=demo)
         return self
 
-    def plot_spectrum(self):
+    def plot_spectrum(self, ax=None, show=True):
         from matplotlib.collections import LineCollection
         from matplotlib.legend_handler import HandlerLineCollection
 
@@ -240,7 +240,11 @@ class Exposure:
         cmap = plt.cm.viridis
         colors = cmap(np.linspace(0, 1, len(self.powers)))
 
-        fig, ax = plt.subplots(figsize=(8, 6))
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(8, 6))
+        else:
+            fig = ax.get_figure()
+
         for power, col in zip(self.powers, colors):
             ax.plot(self.freq, 10 * np.log10(power), alpha=0.5, color=col)
         segs = [([[0, 0], [1, 0]]) for _ in colors]  # one horizontal segment per color
@@ -263,8 +267,19 @@ class Exposure:
             ax.set_title(f"{self.exposure_type.title()}")
         ax.minorticks_on()
         ax.grid(which="both")
-        plt.show()
+        if show:
+            plt.show()
         return fig, ax
+
+
+def cosmetics(ax):
+    ax.set_xlabel("Frequency (MHz)")
+    ax.set_ylabel("Power (dB/MHz)")
+    # if self.exposure_type:
+    #     ax.set_title(f"{self.exposure_type.title()}")
+    ax.minorticks_on()
+    ax.grid(which="both")
+    plt.show()
 
 
 #     def plot_spectrum(self):
