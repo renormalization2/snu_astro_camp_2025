@@ -197,10 +197,10 @@ class Exposure:
         exposure_type = type or self.exposure_type
 
         time_str = clean_isot(time) if time is not None else "*"
-        l_str = f"{l:.0f}" if l is not None else "*"
-        b_str = f"{b:.0f}" if b is not None else "*"
+        l_str = f"_{l:.0f}" if l is not None else "*"
+        b_str = f"_{b:.0f}" if b is not None else "*"
         exp_str = exposure_type if exposure_type is not None else "*"
-        template = f"{time_str}_{l_str}_{b_str}_{exp_str}*.csv"
+        template = f"{time_str}{l_str}{b_str}_{exp_str}*.csv"
         template = str((DEMO_DATA_DIR if demo else DATA_DIR) / template)
         flist = glob(template)
         print(f"loading {len(flist)} files")
