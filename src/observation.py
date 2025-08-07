@@ -90,7 +90,7 @@ class Exposure:
     def __repr__(self):
         return f"Exposure object with n_obs={self.n_obs}, l={self.l}, b={self.b}, time={self.time}"
 
-    def run(self, demo=False):
+    def run(self, demo=False, gain=None):
         # canvas for spectrum plot
         if demo:
             flist = glob(str(DEMO_DATA_DIR / "2025-08-04" / "*_31_11_sky_???.csv"))[:10]
@@ -106,7 +106,7 @@ class Exposure:
                 samples = self._expose(
                     sample_rate=3e6,
                     center_freq=1.4204e9,
-                    gain=50,
+                    gain=gain or 50,
                     n_samples=256 * self.n_fft,
                     save_raw=False,
                 )
@@ -125,12 +125,13 @@ class Exposure:
         # self.ax.legend()
         print("Exposure finished")
 
-    def _expose(self, sample_rate=3e6, center_freq=1.4204e9, gain=50, n_samples=256 * NFFT, save_raw=False):
+    def _expose(self, sample_rate=3e6, center_freq=1.4204e9, gain=50, n_samples=256 * NFFT, save_raw=False, **kwargs):
         """unload raw time-series data from memory immediately, and only keep the power spectrum"""
         self.sample_rate = sample_rate
         self.center_freq = center_freq
         self.gain = gain
         self.n_samples = n_samples
+        print(f"gain: {self.gain}")
         # self.powers = np.empty((self.n_obs, self.n_fft))  # redefine with new n_fft
 
         samples = expose_sdr(
