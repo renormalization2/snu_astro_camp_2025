@@ -84,14 +84,12 @@ def gaussian_fit(V_r, T_src, p0, obj=None, plot=True, return_plot=True):
     return popt, perr
 
 
-from astropy.table import Table
-from src.constants import DEMO_DATA_DIR
-
-tbl = Table.read(DEMO_DATA_DIR / "rotation_curve.csv")
-
-
 def plot_archive_rotation_curve():
+    from astropy.table import Table
     from scipy.interpolate import CubicSpline
+    from src.constants import DEMO_DATA_DIR
+
+    tbl = Table.read(DEMO_DATA_DIR / "rotation_curve.csv")
 
     plt.errorbar(
         tbl["r"],
